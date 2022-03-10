@@ -146,3 +146,49 @@ juju config kubernetes-worker sysctl="{ fs.inotify.max_user_instances=8192 }"
 juju config kubernetes-worker sysctl="{ fs.inotify.max_user_watches=1048576 }"
 ```
 
+----
+
+# Local Environment Setup
+
+In case you don't need a production environment like the one described above, you can setup a minimal configuration locally using **kind**.
+
+First, create your cluster with `kind`:
+
+```bash
+kind create cluster --name charmed-kubernetes
+```
+
+Then, deploy the **juju OLM** into your local cluster:
+
+```bash
+juju add-k8s mycluster --cluster-name=kind-charmed-kubernetes
+```
+
+Let's start the operator lifecycle manager on your cluster:
+
+```bash
+juju bootstrap mycluster
+```
+
+Now your cluster has the **juju OLM** controller installed.
+
+From now, you can use `juju` to create **models** and **deploy** charms.
+
+```bash
+juju add-model hello-world
+```
+
+On Kubernetes, each model is put into a different namespace on the cluster. So you should see a `hello-world` namespace in your Kubernetes:
+
+```bash
+kubectl get namespaces
+NAME                   STATUS   AGE
+controller-mycluster   Active   160m
+default                Active   162m
+kube-node-lease        Active   162m
+kube-public            Active   162m
+kube-system            Active   162m
+local-path-storage     Active   162m
+hello-world            Active   79s
+```
+
