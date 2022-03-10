@@ -1,0 +1,26 @@
+# Copyright 2022 Clastix
+# See LICENSE file for licensing details.
+
+name: charm-k8s-capsule
+display-name: |
+  Charm K8s Capsule
+description: |
+  Capsule implements a multi-tenant and policy-based environment in your Kubernetes cluster.
+  It is designed as a micro-services-based ecosystem with the minimalist approach, leveraging only on upstream Kubernetes.
+
+  This charm deploy and manage capsule on Kubernetes.
+  The Capsule operator is a Python script that wrap the latest released version of Capsule, 
+  providing lifecycle management and handling events such as install, upgrade, integrate, and remove.
+
+summary: |
+  This charm deploy and manage capsule on Kubernetes.
+
+containers:
+  capsule:
+    resource: capsule-image
+
+resources:
+  capsule-image:
+    type: oci-image
+    description: OCI image for capsule (https://quay.io/repository/clastix/capsule)
+    upstream-source: quay.io/clastix/capsule:v0.1.1
