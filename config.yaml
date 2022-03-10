@@ -8,7 +8,7 @@
 # Learn more about config at: https://juju.is/docs/sdk/config
 
 options:
-  thing:
-    default: 🎁
-    description: A thing used by the charm.
+  namespace:
+    default: capsule-system
+    description: Capsule system namespace.
     type: string

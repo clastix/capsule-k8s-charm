@@ -56,7 +56,9 @@ class CharmK8SCapsuleCharm(CharmBase):
                     "summary": "capsule",
                     "command": "/manager",
                     "startup": "enabled",
-                    "environment": {"thing": self.model.config["thing"]},
+                    "environment": {
+                        "NAMESPACE": self.model.config["namespace"]
+                    },
                 }
             },
         }
