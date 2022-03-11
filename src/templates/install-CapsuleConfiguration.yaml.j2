@@ -1,0 +1,10 @@
+apiVersion: capsule.clastix.io/v1alpha1
+kind: CapsuleConfiguration
+metadata:
+  name: capsule-default
+  namespace: capsule-system
+spec:
+  forceTenantPrefix: false
+  protectedNamespaceRegex: ""
+  userGroups:
+  - capsule.clastix.io

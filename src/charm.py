@@ -13,11 +13,19 @@ develop a new k8s charm using the Operator Framework:
 """
 
 import logging
+import traceback
+import lightkube
 
+from importlib.abc import ResourceReader
+from glob import glob
+from os import path
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from lightkube import Client, codecs
+from lightkube.generic_resource import create_namespaced_resource
+from lightkube.core.exceptions import ApiError
 
 logger = logging.getLogger(__name__)
 
@@ -27,50 +35,76 @@ class CharmK8SCapsuleCharm(CharmBase):
 
     _stored = StoredState()
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
-        self.framework.observe(self.on.capsule_pebble_ready, self._on_capsule_pebble_ready)
+        self._context = {
+            "namespace": self.model.config["namespace"], 
+            "app_name": self.model.config["name"]
+        }
+        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
-        self.framework.observe(self.on.fortune_action, self._on_fortune_action)
         self._stored.set_default(things=[])
 
-    def _on_capsule_pebble_ready(self, event):
-        """Define and start a workload using the Pebble API.
+    def _on_install(self, _) -> None:
+        """Handle the install event, create Kubernetes resources."""
+        self.unit.status = MaintenanceStatus("creating kubernetes resources")
+        try:
+            logger.info("create kubernetes resources.")
+            self._create_kubernetes_resources()
+        except ApiError:
+            logger.error(traceback.format_exc())
+            self.unit.status = BlockedStatus("kubernetes resource creation failed")
 
-        TEMPLATE-TODO: change this example to suit your needs.
-        You'll need to specify the right entrypoint and environment
-        configuration for your specific workload. Tip: you can see the
-        standard entrypoint of an existing container using docker inspect
+    def _create_kubernetes_resources(self) -> bool:
+        """Iterates over manifests in the templates directory and applies them to the cluster."""
+        client = Client()
+        with open("src/templates/install.yaml.j2") as f:
+            logger.info("collecting manifests.")
+            for resource in codecs.load_all_yaml(f, context=self._context):
+                try:
+                    logger.info("creating resource %s from manifest.", resource.kind)
+                    client.create(resource)
+                    logger.info("resources %s created.", resource.kind)
+                except ApiError as e:
+                    if e.status.code == 409:
+                        logger.info("replacing resource: %s.", str(resource.to_dict()))
+                        client.replace(resource)
+                    else:
+                        logger.debug("failed to create resource: %s.", str(resource.to_dict()))
+                        raise
+                
+                try:
+                    if resource.kind == "CustomResourceDefinition" and path.exists("src/templates/install-{}.yaml.j2".format(resource.spec.names.kind)):
+                        with open("src/templates/install-{}.yaml.j2".format(resource.spec.names.kind)) as f_crd:
+                            logger.info("creating CRD %s for %s.", resource.kind, resource.spec.names.kind)
+                            CRD = lightkube.generic_resource.create_global_resource(
+                                group=resource.spec.group, 
+                                version=resource.spec.versions[0].name, 
+                                kind=resource.spec.names.kind, 
+                                plural=resource.spec.names.plural,
+                                verbs=None
+                            )
+                            for resource_crd in codecs.load_all_yaml(f_crd):
+                                crd = CRD(
+                                    kind=resource_crd.kind,
+                                    apiVersion=resource.spec.group + "/" + resource.spec.versions[0].name,
+                                    spec=resource_crd.spec, 
+                                    metadata=resource_crd.metadata
+                                )
+                                logger.info("creating %s resource.", resource_crd.kind)
+                                client.wait(resource.__class__, name=resource.metadata.name, for_conditions=['Established'])
+                                client.create(crd)
+                except ApiError as e:
+                    if e.status.code == 409:
+                        logger.info("replacing resource: %s.", str(resource.to_dict()))
+                        client.replace(resource)
+                    else:
+                        logger.debug("failed to create resource: %s.", str(resource.to_dict()))
+                        raise
 
-        Learn more about Pebble layers at https://github.com/canonical/pebble
-        """
-        # Get a reference the container attribute on the PebbleReadyEvent
-        container = event.workload
-        # Define an initial Pebble layer configuration
-        pebble_layer = {
-            "summary": "capsule layer",
-            "description": "pebble config layer for capsule",
-            "services": {
-                "capsule": {
-                    "override": "replace",
-                    "summary": "capsule",
-                    "command": "/manager",
-                    "startup": "enabled",
-                    "environment": {
-                        "NAMESPACE": self.model.config["namespace"]
-                    },
-                }
-            },
-        }
-        # Add initial Pebble config layer using the Pebble API
-        container.add_layer("capsule", pebble_layer, combine=True)
-        # Autostart any services that were defined with startup: enabled
-        container.autostart()
-        # Learn more about statuses in the SDK docs:
-        # https://juju.is/docs/sdk/constructs#heading--statuses
-        self.unit.status = ActiveStatus()
+        return True
 
-    def _on_config_changed(self, _):
+    def _on_config_changed(self, _) -> None:
         """Just an example to show how to deal with changed configuration.
 
         TEMPLATE-TODO: change this example to suit your needs.
@@ -80,26 +114,7 @@ class CharmK8SCapsuleCharm(CharmBase):
 
         Learn more about config at https://juju.is/docs/sdk/config
         """
-        current = self.config["thing"]
-        if current not in self._stored.things:
-            logger.debug("found a new thing: %r", current)
-            self._stored.things.append(current)
-
-    def _on_fortune_action(self, event):
-        """Just an example to show how to receive actions.
-
-        TEMPLATE-TODO: change this example to suit your needs.
-        If you don't need to handle actions, you can remove this method,
-        the hook created in __init__.py for it, the corresponding test,
-        and the actions.py file.
-
-        Learn more about actions at https://juju.is/docs/sdk/actions
-        """
-        fail = event.params["fail"]
-        if fail:
-            event.fail(fail)
-        else:
-            event.set_results({"fortune": "A bug in the code is worth two in the documentation."})
+        return
 
 
 if __name__ == "__main__":
