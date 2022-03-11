@@ -8,10 +8,6 @@
 # Learn more about config at: https://juju.is/docs/sdk/config
 
 options:
-  name:
-    default: capsule
-    description: Application name.
-    type: string
   namespace:
     default: capsule-system
     description: Capsule system namespace.
