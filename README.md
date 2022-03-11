@@ -14,5 +14,5 @@ To install the Capsule charm, run:
 # Create dedicated namespace on k8s cluster
 juju add-model capsule-system
 # Deploy capsule along with the charm operator
-juju deploy ./charm-k8s-capsule.charm --resource capsule-image=clastix/capsule:v0.1.1
+juju deploy --trust ./charm-k8s-capsule.charm --resource capsule-image=clastix/capsule:v0.1.1
 ```
