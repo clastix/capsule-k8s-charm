@@ -4,7 +4,10 @@ metadata:
   name: capsule-default
   namespace: capsule-system
 spec:
-  forceTenantPrefix: false
-  protectedNamespaceRegex: ""
+  forceTenantPrefix: {{ force_tenant_prefix }} 
+  protectedNamespaceRegex: "{{ protected_namespace_regex }}"
   userGroups:
-  - capsule.clastix.io
+  {% set ug = user_groups.split(',') %}
+  {% for item in ug %}
+    - "{{ item }}"
+  {% endfor %}
