@@ -16,3 +16,19 @@ options:
     default: capsule-system
     description: Capsule system namespace.
     type: string
+  capsule-configuration-name:
+    default: capsule-default
+    description: Capsule Configuration name.
+    type: string
+  user-groups:
+    default: capsule.clastix.io
+    description: Comma-separated list of user groups (oil.capsule.io,gas.capsule.io,...).
+    type: string
+  force-tenant-prefix:
+    default: false
+    description: Force to have a tenant prefix.
+    type: boolean
+  protected-namespace-regex:
+    default: ""
+    description: Disallows creation of namespaces matching the passed regexp.
+    type: string
