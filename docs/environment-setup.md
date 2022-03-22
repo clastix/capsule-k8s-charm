@@ -161,7 +161,7 @@ kind create cluster --name charmed-kubernetes
 Then, deploy the **juju OLM** into your local cluster:
 
 ```bash
-juju add-k8s mycluster --cluster-name=kind-charmed-kubernetes
+juju add-k8s --client mycluster --cluster-name=kind-charmed-kubernetes
 ```
 
 Let's start the operator lifecycle manager on your cluster:
