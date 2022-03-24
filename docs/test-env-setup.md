@@ -1,4 +1,4 @@
-# Environment Setup
+# Test Environment Setup
 
 This guide will show you how to create a local installation of **Charmed Kubernetes**.
 
