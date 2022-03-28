@@ -15,6 +15,7 @@ develop a new k8s charm using the Operator Framework:
 import logging
 import traceback
 import lightkube
+import yaml
 from http import HTTPStatus
 
 from os import path
@@ -62,11 +63,17 @@ class CharmK8SCapsuleCharm(CharmBase):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
+        # Retrieve capsule container image from charm 
+        capsule_image = self.get_container_image(image_name="capsule-image")
+        if capsule_image == "" or capsule_image is None:
+            raise Exception("No container image found.")
+
         # We have to collect all the available configurations 
         # in order to fill the Jinja2 manifest templates.
         self._context = {
             "namespace": self.model.config["namespace"], 
             "app_name": self.model.config["name"],
+            "capsule_image": capsule_image,
             "user_groups": self.model.config["user-groups"],
             "force_tenant_prefix": self.model.config["force-tenant-prefix"],
             "protected_namespace_regex": self.model.config["protected-namespace-regex"],
@@ -76,6 +83,12 @@ class CharmK8SCapsuleCharm(CharmBase):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_capsule_configuration_changed)
         self._stored.set_default(things=[])
+
+    def get_container_image(self, image_name: str) -> str:
+        """Retrieve capsule contianer image internally from charm."""
+        container_info_path = self.model.resources.fetch(image_name)
+        with open(container_info_path) as cip:
+            return yaml.load(cip, Loader=yaml.FullLoader)["registrypath"]
 
     def _on_install(self, _) -> None:
         """Handle the install event, create Kubernetes resources."""
