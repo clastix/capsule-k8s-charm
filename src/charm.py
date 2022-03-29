@@ -88,7 +88,7 @@ class CharmK8SCapsuleCharm(CharmBase):
         """Retrieve capsule contianer image internally from charm."""
         container_info_path = self.model.resources.fetch(image_name)
         with open(container_info_path) as cip:
-            return yaml.load(cip, Loader=yaml.FullLoader)["registrypath"]
+            return yaml.safe_load(cip)["registrypath"]
 
     def _on_install(self, _) -> None:
         """Handle the install event, create Kubernetes resources."""
