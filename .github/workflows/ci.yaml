@@ -1,0 +1,35 @@
+name: Tests
+on: [pull_request, push]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install dependencies
+        run: python3 -m pip install tox
+      - name: Run linters
+        run: tox -e lint
+  integration-test-microk8s:
+    name: Integration tests (microk8s)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup operator environment
+        uses: charmed-kubernetes/actions-operator@main
+        with:
+          provider: microk8s
+          # this creates the right model for our charm.
+          bootstrap-options: "--default-model=capsule-system"
+      - name: Run integration tests
+        # set a predictable model name so it can be consumed by charm-logdump-action
+        run: tox -e integration -- --model capsule-system
+      - name: Dump logs
+        uses: canonical/charm-logdump-action@main
+        if: failure()
+        with:
+          app: charm-k8s-capsule
+          model: testing
