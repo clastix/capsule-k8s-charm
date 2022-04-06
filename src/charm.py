@@ -16,19 +16,23 @@ import logging
 import traceback
 from http import HTTPStatus
 from os import path
+from typing import List
 
 import lightkube
-import yaml
 from lightkube import Client, codecs
 from lightkube.core.exceptions import ApiError
-from ops.charm import CharmBase
+from lightkube.models.core_v1 import SecretVolumeSource, Volume, VolumeMount
+from lightkube.resources.apps_v1 import StatefulSet
+from lightkube.resources.core_v1 import Service
+from ops.charm import CharmBase, WorkloadEvent
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 
 logger = logging.getLogger(__name__)
 TEMPLATE_DIR = "src/templates/"
-
+VOLUME_MOUNT = "/tmp/k8s-webhook-server/serving-certs"
+VOLUME_CERT = "cert"
 CAPSULE_CONFIGURATION_CRD = None
 
 
@@ -69,17 +73,11 @@ class CharmK8SCapsuleCharm(CharmBase):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-        # Retrieve capsule container image from charm
-        capsule_image = self.get_container_image(image_name="capsule-image")
-        if capsule_image == "" or capsule_image is None:
-            raise Exception("No container image found.")
-
         # We have to collect all the available configurations
         # in order to fill the Jinja2 manifest templates.
         self._context = {
             "namespace": self.model.config["namespace"],
             "app_name": self.model.config["name"],
-            "capsule_image": capsule_image,
             "user_groups": self.model.config["user-groups"],
             "force_tenant_prefix": self.model.config["force-tenant-prefix"],
             "protected_namespace_regex": self.model.config["protected-namespace-regex"],
@@ -87,14 +85,90 @@ class CharmK8SCapsuleCharm(CharmBase):
 
         # Assign hook functions to events.
         self.framework.observe(self.on.install, self._on_install)
+        self.framework.observe(self.on.capsule_pebble_ready, self._on_capsule_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_capsule_configuration_changed)
         self._stored.set_default(things=[])
 
-    def get_container_image(self, image_name: str) -> str:
-        """Retrieve capsule container image internally from charm."""
-        container_info_path = self.model.resources.fetch(image_name)
-        with open(container_info_path, encoding="utf-8") as cip:
-            return yaml.safe_load(cip)["registrypath"]
+        self._patch_capsule_services()
+
+    def _statefulset_patched(self) -> bool:
+        """Slightly naive check to see if the StatefulSet has already been patched."""
+        ss: StatefulSet = self.client.get(
+            StatefulSet, name=self.app.name, namespace=self.model.config["namespace"]
+        )
+        expected = VolumeMount(mountPath=VOLUME_MOUNT, name=VOLUME_CERT)
+        return expected in ss.spec.template.spec.containers[1].volumeMounts
+
+    def _patch_statefulset(self) -> None:
+        """Patch Capsule StatefulSet to add Volumes."""
+        ss: StatefulSet = self.client.get(
+            StatefulSet, name=self.app.name, namespace=self.model.config["namespace"]
+        )
+        ss.spec.template.spec.volumes.extend(self._capsule_volumes)
+        ss.spec.template.spec.containers[1].volumeMounts.extend(self._capsule_volume_mounts)
+
+        self.client.patch(
+            StatefulSet, name=self.app.name, obj=ss, namespace=self.model.config["namespace"]
+        )
+
+    def _patch_capsule_services(self) -> None:
+        """Add node selector to Capsule services."""
+        try:
+            # retrieve capsule services
+            service_webhook: Service = self.client.get(
+                Service, name="capsule-webhook-service", namespace=self.model.config["namespace"]
+            )
+            service_metrics: Service = self.client.get(
+                Service,
+                name="capsule-controller-manager-metrics-service",
+                namespace=self.model.config["namespace"],
+            )
+            capsule_services = [service_webhook, service_metrics]
+
+            for service in capsule_services:
+                service_changed = False
+                # remove default selector
+                if service.spec.selector.get("control-plane"):
+                    service.spec.selector.pop("control-plane")
+                    service_changed = True
+                # add charm custom selector
+                if service.spec.selector.get("app.kubernetes.io/name") is None:
+                    service.spec.selector.update({"app.kubernetes.io/name": "charm-k8s-capsule"})
+                    service_changed = True
+                # apply changes replacing service
+                if service_changed:
+                    self.client.replace(
+                        name=service.metadata.name,
+                        obj=service,
+                        namespace=self.model.config["namespace"],
+                    )
+
+        except ApiError as err:
+            logger.error(err)
+
+    @property
+    def _capsule_volumes(self) -> List[Volume]:
+        """Returns the additional volumes required by Capsule."""
+        # Get the service account details so we can reference it's token
+        return [
+            Volume(
+                name=VOLUME_CERT,
+                secret=SecretVolumeSource(
+                    secretName="capsule-tls",
+                    defaultMode=420,
+                ),
+            )
+        ]
+
+    @property
+    def _capsule_volume_mounts(self) -> List[VolumeMount]:
+        """Returns the additional volume mounts for the capsule containers."""
+        return [
+            VolumeMount(
+                mountPath=VOLUME_MOUNT,
+                name=VOLUME_CERT,
+            ),
+        ]
 
     def _on_install(self, _) -> None:
         """Handle the install event, create Kubernetes resources."""
@@ -108,6 +182,44 @@ class CharmK8SCapsuleCharm(CharmBase):
         except ApiError:
             logger.error(traceback.format_exc())
             self.unit.status = BlockedStatus(f"{self.meta.name} creation failed.")
+
+    def _cli_flags(self) -> str:
+        """Return the cli arguments to pass to agent."""
+        # pylint: disable=line-too-long
+        return " --enable-leader-election --zap-encoder=console --zap-log-level=debug --configuration-name=capsule-default"
+
+    def _on_capsule_pebble_ready(self, event: WorkloadEvent) -> None:
+        """Define and start a workload using the Pebble API."""
+        # Get a reference the container attribute on the PebbleReadyEvent
+        container = event.workload
+        # Define an initial Pebble layer configuration
+        pebble_layer = {
+            "summary": "capsule layer",
+            "description": "pebble config layer for capsule",
+            "services": {
+                "capsule": {
+                    "override": "replace",
+                    "summary": "capsule",
+                    "command": f"/manager {self._cli_flags()}",
+                    "startup": "enabled",
+                    "environment": {"NAMESPACE": self.model.config["namespace"]},
+                    "on-failure": "ignore",
+                }
+            },
+        }
+        # Add initial Pebble config layer using the Pebble API
+        container.add_layer("capsule", pebble_layer, combine=True)
+        # Autostart any services that were defined with startup: enabled
+        container.autostart()
+
+        # Setup volume mounts for capsule
+        logger.info(self._statefulset_patched())
+        if not self._statefulset_patched():
+            logger.info(f"patching {self.app.name} StatefulSet")
+            self._patch_statefulset()
+            self.unit.status = MaintenanceStatus("waiting for changes to apply")
+
+        self.unit.status = ActiveStatus()
 
     # pylint: disable=W0613
     def _on_capsule_configuration_changed(self, event) -> None:
