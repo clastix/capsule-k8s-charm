@@ -6,9 +6,10 @@
 import logging
 from pathlib import Path
 
+import lightkube
 import pytest
 import yaml
-from lightkube import Client
+from lightkube import Client, codecs
 from lightkube.resources.admissionregistration_v1 import (
     MutatingWebhookConfiguration,
     ValidatingWebhookConfiguration,
@@ -66,3 +67,29 @@ async def test_kubernetes_resources_created(ops_test: OpsTest):
         name="capsule-validating-webhook-configuration",
         namespace=ops_test.model_name,
     )
+
+
+@pytest.mark.abort_on_fail
+async def test_tenant_creation(ops_test: OpsTest):
+    """Test if tenant could be created properly."""
+    client = Client()
+
+    tenant = lightkube.generic_resource.create_global_resource(
+        group="capsule.clastix.io",
+        version="v1beta1",
+        kind="Tenant",
+        plural="tenants",
+        verbs=None,
+    )
+    with open("./tests/integration/tenant.yaml", encoding="utf-8") as tenant_manifest:
+        tenant_crd = codecs.load_all_yaml(tenant_manifest)
+        _tenant = tenant(
+            kind=tenant_crd[0].kind,
+            apiVersion="capsule.clastix.io/v1beta1",
+            spec=tenant_crd[0].spec,
+            metadata=tenant_crd[0].metadata,
+        )
+
+        # wait for capsule ready
+        await ops_test.model.wait_for_idle(wait_for_active=True, idle_period=60, status="active")
+        client.create(_tenant)
