@@ -26,7 +26,7 @@ from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import Service
 from ops.charm import CharmBase, WorkloadEvent
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.model import ActiveStatus, BlockedStatus
 
 logger = logging.getLogger(__name__)
 TEMPLATE_DIR = "src/templates/"
@@ -110,7 +110,6 @@ class CapsuleOperatorK8sCharm(CharmBase):
 
     def _patch_capsule_services(self) -> None:
         """Add node selector to Capsule services."""
-
         # retrieve capsule services
         service_webhook: Service = self.client.get(
             Service, name="capsule-webhook-service", namespace=self.model.config["namespace"]
@@ -166,7 +165,6 @@ class CapsuleOperatorK8sCharm(CharmBase):
 
     def _on_install(self, _) -> None:
         """Handle the install event, create Kubernetes resources."""
-        self.unit.status = MaintenanceStatus("creating kubernetes resources.")
         try:
             logger.info("create kubernetes resources.")
             if self._create_kubernetes_resources():
@@ -211,14 +209,12 @@ class CapsuleOperatorK8sCharm(CharmBase):
         if not self._statefulset_patched():
             logger.info(f"patching {self.app.name} StatefulSet")
             self._patch_statefulset()
-            self.unit.status = MaintenanceStatus("waiting for changes to apply")
 
         self.unit.status = ActiveStatus()
 
     # pylint: disable=W0613
     def _on_capsule_configuration_changed(self, event) -> None:
         """Handle the config_changed event for CapsuleConfiguration resource."""
-        self.unit.status = MaintenanceStatus("changing CapsuleConfiguration resource.")
         capsule_configuration_crd = get_capsule_configuration()
 
         # In config changed event the resource should already be created, so we can retrieve this.
