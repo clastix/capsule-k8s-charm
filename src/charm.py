@@ -110,34 +110,38 @@ class CapsuleOperatorK8sCharm(CharmBase):
 
     def _patch_capsule_services(self) -> None:
         """Add node selector to Capsule services."""
-        # retrieve capsule services
-        service_webhook: Service = self.client.get(
-            Service, name="capsule-webhook-service", namespace=self.model.config["namespace"]
-        )
-        service_metrics: Service = self.client.get(
-            Service,
-            name="capsule-controller-manager-metrics-service",
-            namespace=self.model.config["namespace"],
-        )
-        capsule_services = [service_webhook, service_metrics]
+        try:
+            # retrieve capsule services
+            service_webhook: Service = self.client.get(
+                Service, name="capsule-webhook-service", namespace=self.model.config["namespace"]
+            )
+            service_metrics: Service = self.client.get(
+                Service,
+                name="capsule-controller-manager-metrics-service",
+                namespace=self.model.config["namespace"],
+            )
+            capsule_services = [service_webhook, service_metrics]
 
-        for service in capsule_services:
-            service_changed = False
-            # remove default selector
-            if service.spec.selector.get("control-plane"):
-                service.spec.selector.pop("control-plane")
-                service_changed = True
-            # add charm custom selector
-            if service.spec.selector.get("app.kubernetes.io/name") is None:
-                service.spec.selector.update({"app.kubernetes.io/name": "charm-k8s-capsule"})
-                service_changed = True
-            # apply changes replacing service
-            if service_changed:
-                self.client.replace(
-                    name=service.metadata.name,
-                    obj=service,
-                    namespace=self.model.config["namespace"],
-                )
+            for service in capsule_services:
+                service_changed = False
+                # remove default selector
+                if service.spec.selector.get("control-plane"):
+                    service.spec.selector.pop("control-plane")
+                    service_changed = True
+                # add charm custom selector
+                if service.spec.selector.get("app.kubernetes.io/name") is None:
+                    service.spec.selector.update({"app.kubernetes.io/name": "charm-k8s-capsule"})
+                    service_changed = True
+                # apply changes replacing service
+                if service_changed:
+                    self.client.replace(
+                        name=service.metadata.name,
+                        obj=service,
+                        namespace=self.model.config["namespace"],
+                    )
+
+        except ApiError as err:
+            logger.error(err)
 
     @property
     def _capsule_volumes(self) -> List[Volume]:
