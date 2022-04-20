@@ -170,12 +170,12 @@ class CapsuleOperatorK8sCharm(CharmBase):
         try:
             logger.info("create kubernetes resources.")
             if self._create_kubernetes_resources():
-                self.unit.status = ActiveStatus(f"successfully installed {self.meta.name} charm.")
+                self.unit.status = ActiveStatus()
             else:
-                self.unit.status = BlockedStatus(f"{self.meta.name} creation failed.")
+                self.unit.status = BlockedStatus("creation failed.")
         except ApiError:
             logger.error(traceback.format_exc())
-            self.unit.status = BlockedStatus(f"{self.meta.name} creation failed.")
+            self.unit.status = BlockedStatus("creation failed.")
 
     def _cli_flags(self) -> str:
         """Return the cli arguments to pass to agent."""
@@ -241,9 +241,7 @@ class CapsuleOperatorK8sCharm(CharmBase):
         try:
             logger.info("changing configuration for %s resource.", capsule_configuration_res.kind)
             self.client.replace(capsule_configuration_res)
-            self.unit.status = ActiveStatus(
-                f"{capsule_configuration_res.kind} successfully changed."
-            )
+            self.unit.status = ActiveStatus()
         except ApiError:
             logger.debug("failed to update resource %s", capsule_configuration_res.kind)
             self.unit.status = BlockedStatus(f"{capsule_configuration_res.kind} creation failed.")
