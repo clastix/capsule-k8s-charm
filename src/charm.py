@@ -243,7 +243,7 @@ class CapsuleOperatorK8sCharm(CharmBase):
             self.unit.status = BlockedStatus(f"{capsule_configuration_res.kind} creation failed.")
             raise
 
-    def _create_kubernetes_resources(self) -> bool:
+    def _create_kubernetes_resources(self):
         """Iterates over manifests in the templates directory and applies them to the cluster."""
         with open(TEMPLATE_DIR + "install.yaml.j2", encoding="utf-8") as kube_manifests:
             logger.info("collecting manifests.")
@@ -266,9 +266,7 @@ class CapsuleOperatorK8sCharm(CharmBase):
                         capsule_configuration_crd = get_capsule_configuration()
                         self._create_custom_resource(capsule_configuration_crd, resource)
 
-        return True
-
-    def _create_custom_resource(self, crd, resource) -> bool:
+    def _create_custom_resource(self, crd, resource):
         """Create a custom resource from a CRD."""
         if not path.exists(TEMPLATE_DIR + f"install-{resource.spec.names.kind}.yaml.j2"):
             logger.error(
@@ -299,8 +297,6 @@ class CapsuleOperatorK8sCharm(CharmBase):
                     else:
                         logger.debug("failed to create resource: %s.", str(resource.to_dict()))
                         raise
-
-        return True
 
 
 if __name__ == "__main__":
