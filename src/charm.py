@@ -25,7 +25,6 @@ from lightkube.models.core_v1 import SecretVolumeSource, Volume, VolumeMount
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import Service
 from ops.charm import CharmBase, WorkloadEvent
-from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 
@@ -67,7 +66,6 @@ def create_capsule_configuration():
 class CapsuleOperatorK8sCharm(CharmBase):
     """Charm the service."""
 
-    _stored = StoredState()
     client = Client()
 
     def __init__(self, *args) -> None:
@@ -87,7 +85,6 @@ class CapsuleOperatorK8sCharm(CharmBase):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.capsule_pebble_ready, self._on_capsule_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_capsule_configuration_changed)
-        self._stored.set_default(things=[])
 
         self._patch_capsule_services()
 
@@ -113,38 +110,35 @@ class CapsuleOperatorK8sCharm(CharmBase):
 
     def _patch_capsule_services(self) -> None:
         """Add node selector to Capsule services."""
-        try:
-            # retrieve capsule services
-            service_webhook: Service = self.client.get(
-                Service, name="capsule-webhook-service", namespace=self.model.config["namespace"]
-            )
-            service_metrics: Service = self.client.get(
-                Service,
-                name="capsule-controller-manager-metrics-service",
-                namespace=self.model.config["namespace"],
-            )
-            capsule_services = [service_webhook, service_metrics]
 
-            for service in capsule_services:
-                service_changed = False
-                # remove default selector
-                if service.spec.selector.get("control-plane"):
-                    service.spec.selector.pop("control-plane")
-                    service_changed = True
-                # add charm custom selector
-                if service.spec.selector.get("app.kubernetes.io/name") is None:
-                    service.spec.selector.update({"app.kubernetes.io/name": "charm-k8s-capsule"})
-                    service_changed = True
-                # apply changes replacing service
-                if service_changed:
-                    self.client.replace(
-                        name=service.metadata.name,
-                        obj=service,
-                        namespace=self.model.config["namespace"],
-                    )
+        # retrieve capsule services
+        service_webhook: Service = self.client.get(
+            Service, name="capsule-webhook-service", namespace=self.model.config["namespace"]
+        )
+        service_metrics: Service = self.client.get(
+            Service,
+            name="capsule-controller-manager-metrics-service",
+            namespace=self.model.config["namespace"],
+        )
+        capsule_services = [service_webhook, service_metrics]
 
-        except ApiError as err:
-            logger.error(err)
+        for service in capsule_services:
+            service_changed = False
+            # remove default selector
+            if service.spec.selector.get("control-plane"):
+                service.spec.selector.pop("control-plane")
+                service_changed = True
+            # add charm custom selector
+            if service.spec.selector.get("app.kubernetes.io/name") is None:
+                service.spec.selector.update({"app.kubernetes.io/name": "charm-k8s-capsule"})
+                service_changed = True
+            # apply changes replacing service
+            if service_changed:
+                self.client.replace(
+                    name=service.metadata.name,
+                    obj=service,
+                    namespace=self.model.config["namespace"],
+                )
 
     @property
     def _capsule_volumes(self) -> List[Volume]:
