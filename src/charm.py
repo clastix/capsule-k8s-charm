@@ -64,7 +64,7 @@ def create_capsule_configuration():
                 )
 
 
-class CharmK8SCapsuleCharm(CharmBase):
+class CapsuleOperatorK8sCharm(CharmBase):
     """Charm the service."""
 
     _stored = StoredState()
@@ -316,4 +316,4 @@ class CharmK8SCapsuleCharm(CharmBase):
 
 
 if __name__ == "__main__":
-    main(CharmK8SCapsuleCharm)
+    main(CapsuleOperatorK8sCharm)
