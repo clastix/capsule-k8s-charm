@@ -12,6 +12,8 @@ description: |
   This charm deploy and manage capsule on Kubernetes.
   The Capsule operator is a Python script that wrap the latest released version of Capsule, 
   providing lifecycle management and handling events such as install, upgrade, integrate, and remove.
+tags:
+  - capsule
 
 summary: |
   A multi-tenancy and policy-based framework for Kubernetes
