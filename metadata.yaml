@@ -1,7 +1,7 @@
 # Copyright 2022 Clastix
 # See LICENSE file for licensing details.
 
-name: charm-k8s-capsule
+name: capsule-k8s
 display-name: |
   Capsule
 docs: https://discourse.charmhub.io/t/capsule-docs-index/6244

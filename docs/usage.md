@@ -8,7 +8,7 @@ To install the charm, run:
 # Create dedicated namespace on k8s cluster
 juju add-model capsule-system
 # Deploy capsule along with the charm operator
-juju deploy charm-k8s-capsule
+juju deploy capsule-k8s
 ```
 
 ### Configure
@@ -16,15 +16,15 @@ juju deploy charm-k8s-capsule
 To configure the charm, run:
 
 ```bash
-# Example: juju config charm-k8s-capsule key=value
-juju config charm-k8s-capsule force-tenant-prefix=true
-juju config charm-k8s-capsule user-groups=capsule.clastix.io,gas.clastix.io,oil.clastix.io
+# Example: juju config capsule-k8s key=value
+juju config capsule-k8s force-tenant-prefix=true
+juju config capsule-k8s user-groups=capsule.clastix.io,gas.clastix.io,oil.clastix.io
 ```
 
 In case you have multiple `CapsuleConfiguration` instances, you can modify a specific one by using the `capsule-configuration-name` parameter with the name of the resource you want to modify:
 
 ```bash
-juju config charm-k8s-capsule capsule-configuration-name=capsule-configuration-2 force-tenant-prefix=true
+juju config capsule-k8s capsule-configuration-name=capsule-configuration-2 force-tenant-prefix=true
 ```
 
 The configurable parameters are:

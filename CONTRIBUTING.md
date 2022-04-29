@@ -1,4 +1,4 @@
-# charm-k8s-capsule
+# capsule-k8s
 
 ## Developing
 
