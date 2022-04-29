@@ -31,5 +31,5 @@ jobs:
         uses: canonical/charm-logdump-action@main
         if: failure()
         with:
-          app: charm-k8s-capsule
+          app: capsule-k8s
           model: testing

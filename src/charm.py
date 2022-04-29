@@ -130,7 +130,7 @@ class CapsuleOperatorK8sCharm(CharmBase):
                     service_changed = True
                 # add charm custom selector
                 if service.spec.selector.get("app.kubernetes.io/name") is None:
-                    service.spec.selector.update({"app.kubernetes.io/name": "charm-k8s-capsule"})
+                    service.spec.selector.update({"app.kubernetes.io/name": "capsule-k8s"})
                     service_changed = True
                 # apply changes replacing service
                 if service_changed:

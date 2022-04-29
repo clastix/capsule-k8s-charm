@@ -16,7 +16,7 @@ To install the charm, run:
 # Create dedicated namespace on k8s cluster
 juju add-model capsule-system
 # Deploy capsule along with the charm operator
-juju deploy --trust charm-k8s-capsule
+juju deploy --trust capsule-k8s
 ```
 
 ## References
